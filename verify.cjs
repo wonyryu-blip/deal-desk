@@ -1,0 +1,16 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const html=fs.readFileSync('dist/index.html','utf8');
+const elements=new Map();const el=k=>{if(!elements.has(k))elements.set(k,{value:'',innerHTML:'',classList:{toggle(){}},style:{}});return elements.get(k)};
+const context={document:{querySelector:el,querySelectorAll:()=>[],addEventListener(){}},location:{hash:'#/'},window:{addEventListener(){}},crypto:require('node:crypto').webcrypto,structuredClone,console,setTimeout};
+vm.createContext(context);
+vm.runInContext(html.match(/<script>([\s\S]*)<\/script>/)[1].replace(/;init\(\);\s*$/,';'),context);
+vm.runInContext(`state={companies:[{id:'c1',name:'Alpha',sector:'AI',stage:'Growth'},{id:'c2',name:'Beta',sector:'Bio',stage:'Seed'}],deals:[{id:'d1',companyId:'c1',name:'Deal A',fund:'Fund 1',status:'투자완료',amount:10,date:'2026-11-05'}],reports:[{id:'r1',companyId:'c1',title:'Quarterly review',type:'미팅 노트',date:'2026-11-05',body:'Retention improved'}]};render()`,context);
+assert.match(el('#results').innerHTML,/Alpha/);assert.match(el('#results').innerHTML,/Beta/);
+el('#search').value='alpha';vm.runInContext('filter()',context);assert.match(el('#results').innerHTML,/Alpha/);assert.doesNotMatch(el('#results').innerHTML,/Beta/);
+el('#search').value='';el('#fund').value='Fund 1';vm.runInContext('filter()',context);assert.doesNotMatch(el('#results').innerHTML,/Beta/);
+context.location.hash='#/company/c1';vm.runInContext('render()',context);assert.match(el('#app').innerHTML,/Quarterly review/);assert.match(el('#app').innerHTML,/Deal A/);
+context.location.hash='#/report/r1';vm.runInContext('render()',context);assert.match(el('#app').innerHTML,/Retention improved/);
+assert.equal(vm.runInContext('validBackup(state)',context),true);
+assert.equal(vm.runInContext(`validBackup({...state,reports:[{...state.reports[0],url:'javascript:alert(1)'}]})`,context),false);
+assert.equal(vm.runInContext(`esc('<script>')`,context),'&lt;script&gt;');
+console.log('PASS: syntax, dashboard, company search, fund filter, company detail, report body, backup validation, escaping');
